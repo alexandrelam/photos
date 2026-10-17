@@ -9,6 +9,7 @@ import coil3.disk.directory
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import coil3.video.VideoFrameDecoder
+import io.github.alexandrelam.photos.actions.PhotoActions
 import io.github.alexandrelam.photos.media.PhoneMedia
 import io.github.alexandrelam.photos.server.Server
 import io.github.alexandrelam.photos.sync.Sync
@@ -18,6 +19,7 @@ class AppGraph(app: Application) {
     val server = Server(app)
     val phoneMedia = PhoneMedia(app)
     val sync = Sync(app, server)
+    val actions = PhotoActions(app, server, sync)
     val imageLoader: ImageLoader = ImageLoader.Builder(app)
         .components {
             add(OkHttpNetworkFetcherFactory(callFactory = { server.http }))

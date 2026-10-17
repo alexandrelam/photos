@@ -52,6 +52,9 @@ data class ServerFolder(
 
 data class FolderPage(val path: String, val name: String, val folders: List<ServerFolder>, val items: List<MediaItem>, val total: Int)
 
+/** One month of the server timeline. [month] is "yyyy-MM". */
+data class ServerMonth(val month: String, val count: Int, val mine: Int)
+
 data class TimelinePage(val items: List<MediaItem>, val next: String?)
 
 /** Thrown with a message that can be shown to the user as is. */
@@ -137,6 +140,37 @@ class Server(context: Context) {
             items = json.getJSONArray("items").mediaItems(),
             total = json.getInt("total"),
         )
+    }
+
+    /**
+     * Photo counts per month ("2026-10"), newest first. `mine` is how many of them
+     * this device uploaded, so callers can avoid counting a photo twice.
+     */
+    suspend fun months(deviceId: String): List<ServerMonth> {
+        val offsetMinutes = java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000
+        return get(
+            ServerLinks.api("timeline/months").newBuilder()
+                .addQueryParameter("deviceId", deviceId)
+                .addQueryParameter("offsetMinutes", offsetMinutes.toString())
+                .build().toString(),
+        ) { json ->
+            val months = json.getJSONArray("months")
+            (0 until months.length()).map {
+                val m = months.getJSONObject(it)
+                ServerMonth(m.getString("month"), m.getInt("count"), m.getInt("mine"))
+            }
+        }
+    }
+
+    /** Deletes files from the server, by server id and/or by the keys this device uploaded them under. */
+    suspend fun delete(ids: List<Long>, deviceId: String, keys: List<String>): Int = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+            .put("ids", JSONArray(ids))
+            .put("deviceId", deviceId)
+            .put("keys", JSONArray(keys))
+            .toString()
+            .toRequestBody("application/json".toMediaType())
+        call(Request.Builder().url(ServerLinks.api("media/delete").toString()).post(body).build()) { it.getInt("deleted") }
     }
 
     /** Which of [keys] the server has not received from this device yet. */

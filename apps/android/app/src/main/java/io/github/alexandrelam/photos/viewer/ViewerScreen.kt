@@ -1,10 +1,7 @@
 package io.github.alexandrelam.photos.viewer
 
-import android.content.ContentValues
-import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.provider.MediaStore
 import android.widget.MediaController
 import android.widget.Toast
 import android.widget.VideoView
@@ -164,13 +161,11 @@ fun ViewerScreen(onBack: () -> Unit) {
         }
 
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-            Action(Icons.Outlined.Share, "Share", enabled = current.local != null) {
-                current.local?.let { local ->
-                    val send = Intent(Intent.ACTION_SEND)
-                        .setType(if (current.isVideo) "video/*" else "image/*")
-                        .putExtra(Intent.EXTRA_STREAM, local.uri)
-                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    context.startActivity(Intent.createChooser(send, null))
+            Action(Icons.Outlined.Share, "Share") {
+                scope.launch {
+                    runCatching { graph.actions.shareIntent(listOf(current)) }
+                        .onSuccess { context.startActivity(it) }
+                        .onFailure { Toast.makeText(context, it.message ?: "Couldn't share", Toast.LENGTH_SHORT).show() }
                 }
             }
             Action(Icons.Outlined.Info, "Info", highlighted = showInfo) { showInfo = !showInfo }
@@ -180,18 +175,9 @@ fun ViewerScreen(onBack: () -> Unit) {
                 Toast.makeText(context, "Uploading ${current.name}", Toast.LENGTH_SHORT).show()
             }
             Action(Icons.Outlined.Download, "Save", enabled = current.server != null && current.local == null && Build.VERSION.SDK_INT >= 29) {
-                val serverId = current.server?.id ?: return@Action
                 scope.launch {
-                    val message = runCatching {
-                        val values = ContentValues().apply {
-                            put(MediaStore.MediaColumns.DISPLAY_NAME, current.name)
-                            put(MediaStore.MediaColumns.RELATIVE_PATH, if (current.isVideo) "Movies/Darkroom" else "Pictures/Darkroom")
-                        }
-                        val collection = if (current.isVideo) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-                        val uri = context.contentResolver.insert(collection, values) ?: error("Couldn't create the file")
-                        context.contentResolver.openOutputStream(uri)!!.use { graph.server.download(serverId, it) }
-                        "Saved to ${if (current.isVideo) "Movies" else "Pictures"}/Darkroom"
-                    }.getOrElse { it.message ?: "Couldn't save" }
+                    val message = runCatching { graph.actions.saveToPhone(listOf(current)) }
+                        .fold({ "Saved to ${if (current.isVideo) "Movies" else "Pictures"}/Darkroom" }, { it.message ?: "Couldn't save" })
                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
             }

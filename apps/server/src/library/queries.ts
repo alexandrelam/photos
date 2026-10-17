@@ -87,3 +87,24 @@ export function folderSummary(db: Database, folder: string) {
 export function mediaById(db: Database, id: number) {
   return db.select().from(media).where(eq(media.id, id)).get() ?? null;
 }
+
+/**
+ * Photo count per month, newest first. `offsetMinutes` is the phone's UTC offset so
+ * months line up with what the phone shows. `mine` counts files uploaded by `deviceId`,
+ * which the phone already counts as its own.
+ */
+export function monthCounts(db: Database, offsetMinutes: number, deviceId: string | undefined) {
+  const shifted = sql`(${media.takenAt} / 1000) + ${offsetMinutes * 60}`;
+  const month = sql<string>`strftime('%Y-%m', ${shifted}, 'unixepoch')`;
+  return db
+    .select({
+      month,
+      count: sql<number>`count(*)`,
+      mine: sql<number>`count(${uploads.id})`,
+    })
+    .from(media)
+    .leftJoin(uploads, and(eq(uploads.path, media.path), eq(uploads.deviceId, deviceId ?? "")))
+    .groupBy(month)
+    .orderBy(desc(month))
+    .all();
+}

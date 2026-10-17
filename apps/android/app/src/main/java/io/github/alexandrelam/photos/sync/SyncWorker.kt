@@ -34,10 +34,10 @@ internal class SyncWorker(context: Context, params: WorkerParameters) : Coroutin
 
         var uploaded = 0
         return try {
-            // Either one file the user picked in the viewer, or every backed-up album.
-            val only = inputData.getString(IN_ONLY_KEY)
+            // Either the files the user picked, or every backed-up album.
+            val only = inputData.getString(IN_ONLY_FILE)?.let(sync::takeOnlyKeys)
             val candidates = graph.phoneMedia.all().filter {
-                it.local != null && (if (only != null) it.local.key == only else sync.isBackedUp(it))
+                it.local != null && (if (only != null) it.local.key in only else sync.isBackedUp(it))
             }
             val missing = HashSet<String>()
             candidates.map { it.local!!.key }.chunked(2000).forEach { missing += server.missing(sync.deviceId, it) }
@@ -125,7 +125,7 @@ internal class SyncWorker(context: Context, params: WorkerParameters) : Coroutin
     companion object {
         const val OUT_UPLOADED = "uploaded"
         const val OUT_ERROR = "error"
-        const val IN_ONLY_KEY = "onlyKey"
+        const val IN_ONLY_FILE = "onlyFile"
         private const val CHANNEL = "sync"
         private const val NOTIFICATION_ID = 42
 

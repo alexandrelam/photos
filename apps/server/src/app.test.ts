@@ -145,3 +145,29 @@ describe("sync", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("months and delete", () => {
+  test("months count everything and what this device uploaded", async () => {
+    const { months }: any = await (await req("/api/timeline/months?deviceId=pixel&offsetMinutes=120")).json();
+    const total = months.reduce((n: number, m: any) => n + m.count, 0);
+    const mine = months.reduce((n: number, m: any) => n + m.mine, 0);
+    expect(total).toBe(4);
+    expect(mine).toBe(2);
+    expect(months.find((m: any) => m.month === "2026-10")?.mine).toBe(2);
+  });
+
+  test("delete by device key and by id", async () => {
+    const del = (body: object) =>
+      req("/api/media/delete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const byKey: any = await (await del({ deviceId: "pixel", keys: ["DCIM/Camera/IMG_2041.jpg:1"] })).json();
+    expect(byKey.deleted).toBe(1);
+    expect(await Bun.file(join(dir, "photos/phone/Camera/2026/10/IMG_2041.jpg")).exists()).toBe(false);
+
+    const { items }: any = await (await req("/api/timeline")).json();
+    const kyoto = items.find((i: any) => i.name === "b.jpg");
+    const byId: any = await (await del({ ids: [kyoto.id] })).json();
+    expect(byId.deleted).toBe(1);
+    const after: any = await (await req("/api/timeline")).json();
+    expect(after.items.map((i: any) => i.name).sort()).toEqual(["IMG_2041 (2).jpg", "a.jpg"]);
+  });
+});

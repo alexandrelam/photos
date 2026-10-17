@@ -24,7 +24,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,7 +64,9 @@ fun AppNavigation() {
     val start = remember { if (graph.server.settings.value == null) "connect" else Tab.Photos.route }
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
-    val showTabs = Tab.entries.any { it.route == route }
+    // The Photos tab swaps the tabs for its own actions while photos are selected.
+    var selecting by remember { mutableStateOf(false) }
+    val showTabs = Tab.entries.any { it.route == route } && !(route == Tab.Photos.route && selecting)
 
     fun openViewer() = nav.navigate("viewer")
     fun openFolder(path: String) = nav.navigate("folder?path=${Uri.encode(path)}")
@@ -82,7 +86,10 @@ fun AppNavigation() {
                 )
             }
             composable(Tab.Photos.route) {
-                PhotosScreen(onOpen = { items, index -> ViewerSession.open(items, index); openViewer() })
+                PhotosScreen(
+                    onOpen = { items, index -> ViewerSession.open(items, index); openViewer() },
+                    onSelectingChange = { selecting = it },
+                )
             }
             composable(Tab.Library.route) {
                 LibraryScreen(onOpenFolder = ::openFolder)

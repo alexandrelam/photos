@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import java.io.File
 import java.util.UUID
 
 data class SyncPrefs(
@@ -91,14 +92,27 @@ class Sync(private val context: Context, private val server: Server) {
     /** Starts uploading every not-yet-synced file of the backed-up albums. */
     fun start() = enqueue(only = null, ExistingWorkPolicy.KEEP)
 
+    /** Uploads just this phone file. See [startSome]. */
+    fun startOne(item: MediaItem) = startSome(listOf(item))
+
     /**
-     * Uploads just this phone file, whatever album it is in. Queued after a sync
-     * that is already running. Respects "Wi‑Fi only" but not "Only while charging".
+     * Uploads just these phone files, whatever album they are in, and returns how
+     * many still needed uploading. Queued after a sync that is already running.
+     * Respects "Wi‑Fi only" but not "Only while charging".
      */
-    fun startOne(item: MediaItem) {
-        val key = item.local?.key ?: return
-        enqueue(only = key, ExistingWorkPolicy.APPEND_OR_REPLACE)
+    fun startSome(items: List<MediaItem>): Int {
+        val synced = syncedKeys.value
+        val keys = items.mapNotNull { it.local?.key }.filter { it !in synced }
+        if (keys.isEmpty()) return 0
+        // The key list can exceed WorkManager's 10 KB input limit, so it goes in a file.
+        val file = File(context.filesDir, "sync-only-${UUID.randomUUID()}.txt")
+        file.writeText(keys.joinToString("\n"))
+        enqueue(only = file.name, ExistingWorkPolicy.APPEND_OR_REPLACE)
+        return keys.size
     }
+
+    /** Forgets that these phone files are on the server, e.g. after deleting the server copies. */
+    fun forget(keys: Collection<String>) = this.keys.removeAll(keys)
 
     private fun enqueue(only: String?, policy: ExistingWorkPolicy) {
         val p = _prefs.value
@@ -110,10 +124,18 @@ class Sync(private val context: Context, private val server: Server) {
                     .setRequiresCharging(charging)
                     .build(),
             )
-            .apply { if (only != null) setInputData(workDataOf(SyncWorker.IN_ONLY_KEY to only)) }
+            .apply { if (only != null) setInputData(workDataOf(SyncWorker.IN_ONLY_FILE to only)) }
             .apply { if (!p.wifiOnly && !charging) setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST) }
             .build()
         work.enqueueUniqueWork(WORK_NAME, policy, request)
+    }
+
+    /** Reads and deletes a key list written by [startSome]. */
+    internal fun takeOnlyKeys(fileName: String): Set<String> {
+        val file = File(context.filesDir, fileName)
+        val keys = if (file.exists()) file.readLines().filterTo(HashSet()) { it.isNotBlank() } else emptySet()
+        file.delete()
+        return keys
     }
 
     /** Stops the current sync. Already uploaded files stay on the server; the next sync skips them. */

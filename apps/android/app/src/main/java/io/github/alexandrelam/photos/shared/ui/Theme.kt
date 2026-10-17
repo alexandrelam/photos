@@ -32,6 +32,8 @@ data class DarkroomColors(
     /** Background of the selected bottom-bar item. */
     val accentSoft: Color,
     val success: Color,
+    /** Destructive actions such as Delete. */
+    val danger: Color,
     val isDark: Boolean,
 )
 
@@ -48,6 +50,7 @@ private val Dark = DarkroomColors(
     accentText = Color(0xFFFFB547),
     accentSoft = Color(0xFF3A2C14),
     success = Color(0xFF6FD39A),
+    danger = Color(0xFFFF6B5E),
     isDark = true,
 )
 
@@ -64,6 +67,7 @@ private val Light = DarkroomColors(
     accentText = Color(0xFFA15C00),
     accentSoft = Color(0xFFFFE7BF),
     success = Color(0xFF2E9D5E),
+    danger = Color(0xFFC8382B),
     isDark = false,
 )
 

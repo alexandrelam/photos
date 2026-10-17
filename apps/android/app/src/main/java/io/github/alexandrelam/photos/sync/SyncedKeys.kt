@@ -28,6 +28,13 @@ internal class SyncedKeys(context: Context) {
     }
 
     @Synchronized
+    fun removeAll(keys: Collection<String>) {
+        val drop = keys.toSet()
+        if (_keys.value.none { it in drop }) return
+        replace(_keys.value - drop)
+    }
+
+    @Synchronized
     fun replace(keys: Set<String>) {
         _keys.value = keys
         val tmp = File(file.parentFile, "${file.name}.tmp")

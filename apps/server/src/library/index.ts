@@ -5,7 +5,8 @@ import type { Config } from "../shared/config";
 import type { Database } from "../shared/db";
 import { requireKey } from "../shared/auth";
 import { cleanRelative, insideRoot } from "./paths";
-import { folderItems, folderSummary, mediaById, timelinePage } from "./queries";
+import { deleteMedia } from "./deletion";
+import { folderItems, folderSummary, mediaById, monthCounts, timelinePage } from "./queries";
 import { indexFile, scanLibrary, type ScanResult } from "./scanner";
 import { thumbnailFor } from "./thumbnails";
 
@@ -44,6 +45,22 @@ export function createLibrary({ db, config }: { db: Database; config: Config }) 
         return timelinePage(db, cursor, clamp(query.limit, 1, 500, 200));
       },
       { query: t.Object({ cursor: t.Optional(t.String()), limit: t.Optional(t.Numeric()) }) },
+    )
+    .get(
+      "/timeline/months",
+      ({ query }) => ({ months: monthCounts(db, query.offsetMinutes ?? 0, query.deviceId) }),
+      { query: t.Object({ offsetMinutes: t.Optional(t.Numeric()), deviceId: t.Optional(t.String()) }) },
+    )
+    .post(
+      "/media/delete",
+      async ({ body }) => ({ deleted: await deleteMedia(db, root, thumbsDir, body) }),
+      {
+        body: t.Object({
+          ids: t.Optional(t.Array(t.Number())),
+          deviceId: t.Optional(t.String()),
+          keys: t.Optional(t.Array(t.String())),
+        }),
+      },
     )
     .get(
       "/folders",
