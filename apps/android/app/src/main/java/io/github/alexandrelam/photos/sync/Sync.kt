@@ -8,6 +8,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.workDataOf
 import io.github.alexandrelam.photos.media.MediaItem
 import io.github.alexandrelam.photos.media.PhoneAlbum
 import io.github.alexandrelam.photos.server.Server
@@ -88,18 +89,31 @@ class Sync(private val context: Context, private val server: Server) {
     }
 
     /** Starts uploading every not-yet-synced file of the backed-up albums. */
-    fun start() {
+    fun start() = enqueue(only = null, ExistingWorkPolicy.KEEP)
+
+    /**
+     * Uploads just this phone file, whatever album it is in. Queued after a sync
+     * that is already running. Respects "Wi‑Fi only" but not "Only while charging".
+     */
+    fun startOne(item: MediaItem) {
+        val key = item.local?.key ?: return
+        enqueue(only = key, ExistingWorkPolicy.APPEND_OR_REPLACE)
+    }
+
+    private fun enqueue(only: String?, policy: ExistingWorkPolicy) {
         val p = _prefs.value
+        val charging = only == null && p.whileCharging
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(if (p.wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
-                    .setRequiresCharging(p.whileCharging)
+                    .setRequiresCharging(charging)
                     .build(),
             )
-            .apply { if (!p.wifiOnly && !p.whileCharging) setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST) }
+            .apply { if (only != null) setInputData(workDataOf(SyncWorker.IN_ONLY_KEY to only)) }
+            .apply { if (!p.wifiOnly && !charging) setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST) }
             .build()
-        work.enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.KEEP, request)
+        work.enqueueUniqueWork(WORK_NAME, policy, request)
     }
 
     /** Stops the current sync. Already uploaded files stay on the server; the next sync skips them. */

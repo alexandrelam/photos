@@ -37,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -92,7 +93,7 @@ fun ViewerScreen(onBack: () -> Unit) {
     }
     val pager = rememberPagerState(initialPage = ViewerSession.start.coerceIn(0, items.lastIndex)) { items.size }
     val synced by graph.sync.syncedKeys.collectAsState()
-    var showInfo by remember { mutableStateOf(true) }
+    var showInfo by remember { mutableStateOf(false) }
     var playing by remember { mutableStateOf<String?>(null) }
     val current = items[pager.currentPage]
     val context = LocalContext.current
@@ -173,6 +174,11 @@ fun ViewerScreen(onBack: () -> Unit) {
                 }
             }
             Action(Icons.Outlined.Info, "Info", highlighted = showInfo) { showInfo = !showInfo }
+            val notSynced = current.local != null && current.local.key !in synced
+            Action(Icons.Outlined.CloudUpload, if (notSynced) "Sync" else "Synced", enabled = notSynced) {
+                graph.sync.startOne(current)
+                Toast.makeText(context, "Uploading ${current.name}", Toast.LENGTH_SHORT).show()
+            }
             Action(Icons.Outlined.Download, "Save", enabled = current.server != null && current.local == null && Build.VERSION.SDK_INT >= 29) {
                 val serverId = current.server?.id ?: return@Action
                 scope.launch {
