@@ -20,6 +20,16 @@ PHOTOS_ROOT=/srv/photos bun run --filter server start
 | `PORT`          | `8080`         |                                                            |
 | `SERVER_NAME`   | hostname       | Name shown in the app                                      |
 
+### With Docker
+
+```sh
+cp .env.example .env   # set PHOTOS_DIR to your photos folder
+./update.sh            # git pull, rebuild and restart the container
+docker compose logs server | grep "Access key"
+```
+
+Run `./update.sh` again whenever you want the latest version.
+
 On start the server indexes `PHOTOS_ROOT` and prints the access key. Files added to the folder by other means show up after **Settings → Rescan** in the app or a restart.
 
 ## Android app

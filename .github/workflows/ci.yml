@@ -15,6 +15,22 @@ jobs:
       - run: bun run typecheck
       - run: bun run test
 
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start the server container
+        run: |
+          mkdir -p photos data
+          docker compose up -d --build
+      - name: Check it answers
+        run: |
+          for i in $(seq 1 30); do curl -fs localhost:8080/api/health && exit 0; sleep 2; done
+          docker compose logs server
+          exit 1
+      - if: always()
+        run: docker compose logs server
+
   android:
     runs-on: ubuntu-latest
     defaults:

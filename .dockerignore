@@ -1,0 +1,9 @@
+.git
+.github
+**/node_modules
+apps/android
+apps/server/data
+apps/server/photos
+data
+photos
+.env

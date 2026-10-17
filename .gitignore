@@ -17,3 +17,8 @@ local.properties
 .kotlin/
 captures/
 .externalNativeBuild/
+
+# Docker
+.env
+/data/
+/photos/

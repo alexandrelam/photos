@@ -20,7 +20,9 @@ export type Config = {
  * Reads the configuration from the environment. Creates the data folder and,
  * when ACCESS_KEY is unset, a persistent random access key inside it.
  */
-export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
+export function loadConfig(rawEnv: Record<string, string | undefined> = process.env): Config {
+  // Treat empty variables (e.g. `ACCESS_KEY=` from docker compose) as unset.
+  const env = Object.fromEntries(Object.entries(rawEnv).filter(([, v]) => v !== undefined && v !== ""));
   const dataDir = resolve(env.DATA_DIR ?? "./data");
   const photosRoot = resolve(env.PHOTOS_ROOT ?? "./photos");
   mkdirSync(dataDir, { recursive: true });

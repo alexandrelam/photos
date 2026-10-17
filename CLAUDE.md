@@ -15,6 +15,7 @@ Bun workspaces are declared in the root `package.json`; run `bun install` at the
 
 - Server: `bun run dev` (watch mode), `bun run test`, `bun run typecheck` from the root.
 - New migration after editing `apps/server/src/shared/db/schema.ts`: `cd apps/server && bun run db:generate`.
+- Docker: `docker-compose.yml` + `apps/server/Dockerfile` (build context is the repo root); `./update.sh` pulls and rebuilds.
 - Android: `cd apps/android && ./gradlew assembleDebug testDebugUnitTest`.
 
 ## Product rules
