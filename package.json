@@ -1,0 +1,10 @@
+{
+  "name": "photos",
+  "private": true,
+  "workspaces": ["apps/server"],
+  "scripts": {
+    "dev": "bun run --filter server dev",
+    "test": "bun run --filter server test",
+    "typecheck": "bun run --filter server typecheck"
+  }
+}

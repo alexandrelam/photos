@@ -1,0 +1,19 @@
+# Bun / Node
+node_modules/
+*.log
+
+# Server runtime data
+apps/server/data/
+apps/server/photos/
+
+# Android / Gradle
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+.cxx/
+.kotlin/
+captures/
+.externalNativeBuild/
