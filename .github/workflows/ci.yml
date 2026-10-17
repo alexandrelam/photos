@@ -22,7 +22,7 @@ jobs:
       - name: Build and start the server container
         run: |
           mkdir -p photos data
-          docker compose up -d --build
+          PUID=$(id -u) PGID=$(id -g) docker compose up -d --build
       - name: Check it answers
         run: |
           for i in $(seq 1 30); do curl -fs localhost:8080/api/health && exit 0; sleep 2; done
