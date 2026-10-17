@@ -4,14 +4,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.alexandrelam.photos.AppGraph
 import io.github.alexandrelam.photos.media.MediaItem
+import io.github.alexandrelam.photos.media.PhotoAccess
 import io.github.alexandrelam.photos.shared.format.Format
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -34,16 +37,18 @@ internal data class PhotosUi(
 
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class PhotosViewModel(private val graph: AppGraph) : ViewModel() {
-    private val permission = MutableStateFlow(graph.phoneMedia.hasPermission())
+    private val permission = MutableStateFlow(graph.phoneMedia.access())
     private val serverItems = MutableStateFlow<List<MediaItem>>(emptyList())
     private val nextCursor = MutableStateFlow<String?>(null)
     private val loadingMore = MutableStateFlow(false)
     private val error = MutableStateFlow<String?>(null)
     val filter = MutableStateFlow(Filter.All)
     val refreshing = MutableStateFlow(false)
-    val hasPermission: StateFlow<Boolean> = permission
+    val access: StateFlow<PhotoAccess> = permission
 
     private val local: StateFlow<List<MediaItem>> = permission
+        .map { it != PhotoAccess.None }
+        .distinctUntilChanged()
         .flatMapLatest { granted -> if (granted) graph.phoneMedia.observe() else flowOf(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -64,7 +69,7 @@ internal class PhotosViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     fun permissionChanged() {
-        permission.value = graph.phoneMedia.hasPermission()
+        permission.value = graph.phoneMedia.access()
     }
 
     fun refresh() = viewModelScope.launch {

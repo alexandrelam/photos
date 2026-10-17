@@ -1,7 +1,5 @@
 package io.github.alexandrelam.photos.library
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -37,12 +35,12 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import io.github.alexandrelam.photos.LocalAppGraph
+import io.github.alexandrelam.photos.media.PhotoAccessPrompt
 import io.github.alexandrelam.photos.server.ServerFolder
 import io.github.alexandrelam.photos.shared.format.Format
 import io.github.alexandrelam.photos.shared.ui.Darkroom
 import io.github.alexandrelam.photos.shared.ui.DarkroomCard
 import io.github.alexandrelam.photos.shared.ui.DarkroomSwitch
-import io.github.alexandrelam.photos.shared.ui.PrimaryButton
 import io.github.alexandrelam.photos.shared.ui.SectionLabel
 import io.github.alexandrelam.photos.shared.ui.SettingRow
 
@@ -54,9 +52,8 @@ fun LibraryScreen(onOpenFolder: (path: String) -> Unit) {
     val albums by vm.albums.collectAsState()
     val root by vm.root.collectAsState()
     val error by vm.error.collectAsState()
-    val hasPermission by vm.hasPermission.collectAsState()
+    val access by vm.access.collectAsState()
     val colors = Darkroom.colors
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { vm.permissionChanged() }
     LifecycleResumeEffect(Unit) {
         vm.permissionChanged()
         onPauseOrDispose { }
@@ -76,13 +73,7 @@ fun LibraryScreen(onOpenFolder: (path: String) -> Unit) {
             Column {
                 SectionLabel("On this phone", icon = Icons.Outlined.PhoneAndroid)
                 DarkroomCard {
-                    if (!hasPermission) {
-                        Column(Modifier.padding(16.dp)) {
-                            Text("Allow photo access to choose albums to back up.", style = Darkroom.type.caption, color = colors.textSecondary)
-                            Spacer(Modifier.height(10.dp))
-                            PrimaryButton("Allow", onClick = { permission.launch(graph.phoneMedia.permissions) })
-                        }
-                    }
+                    PhotoAccessPrompt(access, graph.phoneMedia.permissions, onChanged = vm::permissionChanged, modifier = Modifier.padding(16.dp))
                     albums.forEach { row ->
                         val count = Format.photos(row.album.count)
                         SettingRow(

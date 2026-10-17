@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.alexandrelam.photos.AppGraph
 import io.github.alexandrelam.photos.media.MediaItem
+import io.github.alexandrelam.photos.media.PhotoAccess
 import io.github.alexandrelam.photos.media.PhoneAlbum
 import io.github.alexandrelam.photos.media.PhoneMedia
 import io.github.alexandrelam.photos.server.FolderPage
@@ -12,8 +13,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -21,8 +24,10 @@ internal data class AlbumRow(val album: PhoneAlbum, val backedUp: Boolean, val w
 
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class LibraryViewModel(private val graph: AppGraph) : ViewModel() {
-    private val permission = MutableStateFlow(graph.phoneMedia.hasPermission())
+    private val permission = MutableStateFlow(graph.phoneMedia.access())
     private val local = permission
+        .map { it != PhotoAccess.None }
+        .distinctUntilChanged()
         .flatMapLatest { if (it) graph.phoneMedia.observe() else flowOf(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList<MediaItem>())
 
@@ -36,14 +41,14 @@ internal class LibraryViewModel(private val graph: AppGraph) : ViewModel() {
 
     val root = MutableStateFlow<FolderPage?>(null)
     val error = MutableStateFlow<String?>(null)
-    val hasPermission: StateFlow<Boolean> = permission
+    val access: StateFlow<PhotoAccess> = permission
 
     init {
         refresh()
     }
 
     fun permissionChanged() {
-        permission.value = graph.phoneMedia.hasPermission()
+        permission.value = graph.phoneMedia.access()
     }
 
     fun refresh() = viewModelScope.launch {

@@ -2,6 +2,7 @@ package io.github.alexandrelam.photos.media
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.net.Uri
@@ -9,9 +10,15 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -28,11 +35,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import coil3.compose.AsyncImage
 import io.github.alexandrelam.photos.shared.format.Format
 import io.github.alexandrelam.photos.shared.ui.Darkroom
+import io.github.alexandrelam.photos.shared.ui.PrimaryButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -41,6 +50,8 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+
+enum class PhotoAccess { Full, Partial, None }
 
 /** A picture or video, on this phone, on the server, or both. */
 data class MediaItem(
@@ -101,15 +112,21 @@ class PhoneMedia(private val context: Context) {
         else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
     }
 
-    fun hasPermission(): Boolean {
+    /**
+     * How much of the gallery the app may read. On Android 14+ the user can pick
+     * "Select photos", which only shares the pictures they tick: that is [PhotoAccess.Partial].
+     */
+    fun access(): PhotoAccess {
         fun granted(p: String) = ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         return when {
-            Build.VERSION.SDK_INT >= 34 ->
-                granted(Manifest.permission.READ_MEDIA_IMAGES) || granted(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
-            Build.VERSION.SDK_INT >= 33 -> granted(Manifest.permission.READ_MEDIA_IMAGES)
-            else -> granted(Manifest.permission.READ_EXTERNAL_STORAGE)
+            Build.VERSION.SDK_INT >= 33 && granted(Manifest.permission.READ_MEDIA_IMAGES) -> PhotoAccess.Full
+            Build.VERSION.SDK_INT >= 34 && granted(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) -> PhotoAccess.Partial
+            Build.VERSION.SDK_INT < 33 && granted(Manifest.permission.READ_EXTERNAL_STORAGE) -> PhotoAccess.Full
+            else -> PhotoAccess.None
         }
     }
+
+    fun hasPermission(): Boolean = access() != PhotoAccess.None
 
     /** Every picture and video on the phone, newest first. Empty without permission. */
     suspend fun all(): List<MediaItem> = withContext(Dispatchers.IO) {
@@ -184,5 +201,50 @@ fun MediaThumbnail(item: MediaItem, modifier: Modifier = Modifier, notSynced: Bo
                 Icon(Icons.Outlined.CloudOff, contentDescription = "Not synced", tint = colors.accent, modifier = Modifier.size(14.dp))
             }
         }
+    }
+}
+
+/**
+ * Asks for access to the whole gallery. Shows nothing once access is full.
+ * With partial access ("Select photos") it sends the user to the app's permission
+ * screen, where "Allow all" lives, instead of the per-photo picker.
+ * Callers should re-read [PhoneMedia.access] when the screen resumes.
+ */
+@Composable
+fun PhotoAccessPrompt(access: PhotoAccess, permissions: Array<String>, onChanged: () -> Unit, modifier: Modifier = Modifier) {
+    if (access == PhotoAccess.Full) return
+    val context = LocalContext.current
+    val colors = Darkroom.colors
+    val request = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { onChanged() }
+    Column(modifier) {
+        Text(
+            if (access == PhotoAccess.Partial) "Darkroom only sees the photos you picked" else "Allow access to your photos",
+            style = Darkroom.type.section,
+            color = colors.text,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            if (access == PhotoAccess.Partial) {
+                "To back up whole albums, open Photos and videos and choose \"Always allow all\"."
+            } else {
+                "Darkroom needs it to show and back up the pictures on this phone. Choose \"Allow all\"."
+            },
+            style = Darkroom.type.caption,
+            color = colors.textSecondary,
+        )
+        Spacer(Modifier.height(12.dp))
+        PrimaryButton(
+            text = if (access == PhotoAccess.Partial) "Allow all photos" else "Allow",
+            onClick = {
+                if (access == PhotoAccess.Partial) {
+                    context.startActivity(
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                } else {
+                    request.launch(permissions)
+                }
+            },
+        )
     }
 }

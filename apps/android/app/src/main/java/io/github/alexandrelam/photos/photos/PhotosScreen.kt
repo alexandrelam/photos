@@ -51,12 +51,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.alexandrelam.photos.LocalAppGraph
 import io.github.alexandrelam.photos.media.MediaItem
 import io.github.alexandrelam.photos.media.MediaThumbnail
+import io.github.alexandrelam.photos.media.PhotoAccess
+import io.github.alexandrelam.photos.media.PhotoAccessPrompt
 import io.github.alexandrelam.photos.server.Connection
 import io.github.alexandrelam.photos.shared.format.Format
 import io.github.alexandrelam.photos.shared.ui.Darkroom
 import io.github.alexandrelam.photos.shared.ui.DarkroomCard
 import io.github.alexandrelam.photos.shared.ui.FilterChip
-import io.github.alexandrelam.photos.shared.ui.PrimaryButton
 import io.github.alexandrelam.photos.shared.ui.StatusDot
 import io.github.alexandrelam.photos.sync.SyncSheet
 import io.github.alexandrelam.photos.sync.SyncState
@@ -70,17 +71,13 @@ fun PhotosScreen(onOpen: (items: List<MediaItem>, index: Int) -> Unit) {
     val ui by vm.ui.collectAsState()
     val filter by vm.filter.collectAsState()
     val refreshing by vm.refreshing.collectAsState()
-    val hasPermission by vm.hasPermission.collectAsState()
+    val access by vm.access.collectAsState()
     val connection by graph.server.connection.collectAsState()
     val prefs by graph.sync.prefs.collectAsState()
     val syncState by graph.sync.state.collectAsState(initial = SyncState.Idle)
     var showSheet by rememberSaveable { mutableStateOf(false) }
     val colors = Darkroom.colors
 
-    val mediaPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        vm.permissionChanged()
-        vm.refresh()
-    }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         graph.sync.start()
         showSheet = true
@@ -146,20 +143,10 @@ fun PhotosScreen(onOpen: (items: List<MediaItem>, index: Int) -> Unit) {
                 contentPadding = PaddingValues(bottom = 16.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                if (!hasPermission && filter != Filter.Server) {
+                if (access != PhotoAccess.Full && filter != Filter.Server) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         DarkroomCard(Modifier.padding(16.dp)) {
-                            Column(Modifier.padding(16.dp)) {
-                                Text("Allow access to your photos", style = Darkroom.type.section, color = colors.text)
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    "Darkroom needs it to show and back up the pictures on this phone.",
-                                    style = Darkroom.type.caption,
-                                    color = colors.textSecondary,
-                                )
-                                Spacer(Modifier.height(12.dp))
-                                PrimaryButton("Allow", onClick = { mediaPermission.launch(graph.phoneMedia.permissions) })
-                            }
+                            PhotoAccessPrompt(access, graph.phoneMedia.permissions, onChanged = vm::permissionChanged, modifier = Modifier.padding(16.dp))
                         }
                     }
                 }
@@ -194,7 +181,7 @@ fun PhotosScreen(onOpen: (items: List<MediaItem>, index: Int) -> Unit) {
                         }
                     }
                 }
-                if (ui.sections.isEmpty() && !refreshing && (hasPermission || filter == Filter.Server)) {
+                if (ui.sections.isEmpty() && !refreshing && (access != PhotoAccess.None || filter == Filter.Server)) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
                             "No photos here yet.",
