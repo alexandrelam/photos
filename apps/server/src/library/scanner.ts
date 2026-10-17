@@ -68,10 +68,30 @@ export async function indexFile(db: Database, root: string, rel: string): Promis
   return saved?.id ?? db.select({ id: media.id }).from(media).where(eq(media.path, rel)).get()?.id ?? null;
 }
 
-async function readExif(file: string) {
+const EXIF_HEAD = 256 * 1024;
+
+/**
+ * Hands exifr bytes rather than a path: given a path it opens a FileHandle that it
+ * does not always close, and Bun crashes the process when such a handle is collected.
+ * The head of the file holds the EXIF block for most photos; the whole file is read
+ * only when the head yields no date (e.g. HEIF that stores it further in).
+ */
+async function readExif(path: string) {
+  const file = Bun.file(path);
   try {
-    const tags = await exifr.parse(file, {
+    const head = await parseExif(await file.slice(0, EXIF_HEAD).arrayBuffer());
+    if (head?.takenAt !== undefined || file.size <= EXIF_HEAD) return head;
+    return (await parseExif(await file.arrayBuffer())) ?? head;
+  } catch {
+    return null;
+  }
+}
+
+async function parseExif(bytes: ArrayBuffer) {
+  try {
+    const tags = await exifr.parse(bytes, {
       pick: ["DateTimeOriginal", "CreateDate", "ExifImageWidth", "ExifImageHeight", "ImageWidth", "ImageHeight", "Orientation"],
+      translateValues: false,
     });
     if (!tags) return null;
     const date: unknown = tags.DateTimeOriginal ?? tags.CreateDate;
